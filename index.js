@@ -1,5 +1,6 @@
 const TuyaAccessory = require('./lib/TuyaAccessory');
 const TuyaDiscovery = require('./lib/TuyaDiscovery');
+const {isIP} = require('net');
 
 const OccupancySensorAccessory = require('./lib/OccupancySensorAccessory');
 const OutletAccessory = require('./lib/OutletAccessory');
@@ -68,6 +69,8 @@ class TuyaLan {
         [this.log, this.config, this.api] = [...props];
 
         this.cachedAccessories = new Map();
+        this._devices = new Map();
+        this._shutdown = false;
         this.hap = {...this.api.hap,
             EnergyCharacteristics: require('./lib/EnergyCharacteristics')(this.api.hap)};
 
@@ -78,116 +81,90 @@ class TuyaLan {
 
         this._expectedUUIDs = this.config.devices.map(device => UUID.generate(PLUGIN_NAME +(device.fake ? ':fake:' : ':') + device.id));
 
-        this.api.on('didFinishLaunching', () => {
+        this.api.once('shutdown', this.shutdown.bind(this));
+        this.api.once('didFinishLaunching', () => {
             this.discoverDevices();
         });
     }
 
     discoverDevices() {
-        const devices = {};
-        const connectedDevices = [];
-        const fakeDevices = [];
-        this.config.devices.forEach(device => {
-            try {
-                device.id = ('' + device.id).trim();
-                device.key = ('' + device.key).trim();
-                device.type = ('' + device.type).trim();
+        if (this._discoveryStarted || this._shutdown) return;
+        this._discoveryStarted = true;
+        const devices = new Map();
+        const disabledIds = new Set();
+        for (const configured of this.config.devices) {
+            if (configured.disabled) {
+                disabledIds.add(configured.id);
+                continue;
+            }
+            const device = {...configured};
+            device.id = String(device.id || '').trim();
+            device.type = String(device.type || '').trim();
+            device.ip = String(device.ip || '').trim();
+            if (!device.id || !CLASS_DEF[device.type.toLowerCase()]) {
+                this.log.warn('Skipping a device with missing ID or unsupported type.');
+                continue;
+            }
+            if (!device.fake && ((typeof device.key !== 'string' && !Buffer.isBuffer(device.key)) || Buffer.byteLength(device.key) !== 16)) {
+                this.log.warn('Skipping %s: a 16-byte local key is required.', device.name || device.id);
+                continue;
+            }
+            if (device.fake) this._connectDevice(device);
+            else devices.set(device.id, device);
+        }
 
-                device.ip = ('' + (device.ip || '')).trim();
-            } catch(ex) {}
+        const discovered = ({id, ip, version}) => {
+            if (this._shutdown || typeof id !== 'string' || isIP(ip) !== 4) return;
+            if (disabledIds.has(id)) return;
+            const configured = devices.get(id);
+            if (!configured) {
+                this.log.info('Found unconfigured Tuya device %s at %s (protocol %s). Add its local key and device type to configure it.', id, ip, version || 'unknown');
+                return;
+            }
+            const existing = this._devices.get(id);
+            if (existing) {
+                if (existing.updateIP(ip)) this.log.info('Updated local address for %s to %s.', configured.name || id, ip);
+                return;
+            }
+            const protocol = ['3.1', '3.2', '3.3', '3.4', '3.5'].includes(version) ? version : configured.version;
+            this._connectDevice({...configured, ip, ...(protocol ? {version: protocol} : {})});
+        };
+        this._onDiscovery = discovered;
+        this._onIpChanged = ({id, newIp, version}) => discovered({id, ip: newIp, version});
+        TuyaDiscovery.on('discover', this._onDiscovery);
+        TuyaDiscovery.on('ipChanged', this._onIpChanged);
+        TuyaDiscovery.start({ids: [...devices.keys()], log: this.log});
 
-            if (!device.type) return this.log.error('%s (%s) doesn\'t have a type defined.', device.name || 'Unnamed device', device.id);
-            if (!CLASS_DEF[device.type.toLowerCase()]) return this.log.error('%s (%s) doesn\'t have a valid type defined.', device.name || 'Unnamed device', device.id);
-
-            if (device.fake) fakeDevices.push({name: device.id.slice(8), ...device});
-            else devices[device.id] = {name: device.id.slice(8), ...device};
-        });
-
-        const deviceIds = Object.keys(devices);
-        if (deviceIds.length === 0) return this.log.error('No valid configured devices found.');
-
-        this.log.info('Starting discovery...');
-
-        TuyaDiscovery.start({ids: deviceIds, log: this.log})
-            .on('discover', config => {
-                if (!config || !config.id) return;
-                if (!devices[config.id]) return this.log.warn('Discovered a device that has not been configured yet (%s@%s).', config.id, config.ip);
-
-                connectedDevices.push(config.id);
-
-                this.log.info('Discovered %s (%s) identified as %s (%s)', devices[config.id].name, config.id, devices[config.id].type, config.version);
-
-                const device = new TuyaAccessory({
-                    ...devices[config.id], ...config,
-                    log: this.log,
-                    UUID: UUID.generate(PLUGIN_NAME + ':' + config.id),
-                    connect: false
-                });
-                this.addAccessory(device);
-            })
-            .on('ipChanged', ({id, oldIp, newIp}) => {
-                if (devices[id]) {
-                    this.log.info('Device %s (%s) IP changed from %s to %s.', devices[id].name, id, oldIp, newIp);
-                    devices[id].ip = newIp;
-                    // Optionally, reconnect or update accessory
-                    const device = new TuyaAccessory({
-                        ...devices[id],
-                        log: this.log,
-                        UUID: UUID.generate(PLUGIN_NAME + ':' + id),
-                        connect: false
-                    });
-                    this.addAccessory(device);
-                } else {
-                    this.log.warn('IP changed for unknown device %s from %s to %s.', id, oldIp, newIp);
-                }
-            })
-            .on('update', config => {
-                if (!config || !config.id) return;
-                if (!devices[config.id]) return this.log.warn('Trying to update IP of a device that has not been configured yet (%s@%s).', config.id, config.ip);
-
-                // IP of device was changed. Update config.
-                if (devices[config.id] && devices[config.id].ip !== config.ip) {
-                    this.log.info('Device %s (%s) moved from %s to %s.', devices[config.id].name, config.id, devices[config.id].ip, config.ip);
-                    const device = new TuyaAccessory({
-                        ...devices[config.id], ...config,
-                        log: this.log,
-                        UUID: UUID.generate(PLUGIN_NAME + ':' + config.id),
-                        connect: false
-                    });
-                    this.addAccessory(device);
-                }
-            });
-
-        fakeDevices.forEach(config => {
-            this.log.info('Adding fake device: %s', config.name);
-            this.addAccessory(new TuyaAccessory({
-                ...config,
-                log: this.log,
-                UUID: UUID.generate(PLUGIN_NAME + ':fake:' + config.id),
-                connect: false
-            }));
-        });
-
-        setTimeout(() => {
-            deviceIds.forEach(deviceId => {
-                if (connectedDevices.includes(deviceId)) return;
-
-                if (devices[deviceId].ip) {
-
-                    this.log.info('Failed to discover %s (%s) in time but will connect via %s.', devices[deviceId].name, deviceId, devices[deviceId].ip);
-
-                    const device = new TuyaAccessory({
-                        ...devices[deviceId],
-                        log: this.log,
-                        UUID: UUID.generate(PLUGIN_NAME + ':' + deviceId),
-                        connect: false
-                    });
-                    this.addAccessory(device);
-                } else {
-                    this.log.warn('Failed to discover %s (%s) in time but will keep looking.', devices[deviceId].name, deviceId);
-                }
-            });
+        this._discoveryFallback = setTimeout(() => {
+            if (this._shutdown) return;
+            for (const device of devices.values()) {
+                if (this._devices.has(device.id)) continue;
+                if (device.ip && isIP(device.ip) === 4) this._connectDevice(device);
+                else this.log.info('Still looking for %s on the local network.', device.name || device.id);
+            }
         }, 60000);
+    }
+
+    _connectDevice(config) {
+        if (this._shutdown || this._devices.has(config.id)) return;
+        const device = new TuyaAccessory({
+            name: config.id.slice(8), ...config, log: this.log,
+            UUID: UUID.generate(PLUGIN_NAME + (config.fake ? ':fake:' : ':') + config.id),
+            connect: false
+        });
+        this._devices.set(config.id, device);
+        this.addAccessory(device);
+    }
+
+    shutdown() {
+        if (this._shutdown) return;
+        this._shutdown = true;
+        clearTimeout(this._discoveryFallback);
+        if (this._onDiscovery) TuyaDiscovery.removeListener('discover', this._onDiscovery);
+        if (this._onIpChanged) TuyaDiscovery.removeListener('ipChanged', this._onIpChanged);
+        if (this._discoveryStarted) TuyaDiscovery.stop();
+        for (const device of this._devices.values()) device.disconnect();
+        this._devices.clear();
     }
 
     registerPlatformAccessories(platformAccessories) {

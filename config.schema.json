@@ -2,7 +2,7 @@
     "pluginAlias": "TuyaLan",
     "pluginType": "platform",
     "singular": true,
-    "headerDisplay": "<p align='center'><img height='60px' src='https://user-images.githubusercontent.com/3979615/78354049-dc7ff780-75f6-11ea-8026-2f8bf81d8331.png'></p>\n\nBefore using the Tuya plugin you need to discover your devices by following [these instructions](https://github.com/AMoo-Miki/homebridge-tuya-lan/wiki/Setup-Instructions).\nAlternatively install and run [tuya-cli wizard](https://github.com/TuyaAPI/cli)\n\n",
+    "headerDisplay": "<p align='center'><img height='60px' src='https://user-images.githubusercontent.com/3979615/78354049-dc7ff780-75f6-11ea-8026-2f8bf81d8331.png'></p>\n\nDevices are discovered automatically on your local network. Check the Homebridge log for new device IDs and IP addresses. A local key and device type are still required. To obtain them, follow [these instructions](https://github.com/AMoo-Miki/homebridge-tuya-lan/wiki/Setup-Instructions).\nAlternatively install and run [tuya-cli wizard](https://github.com/TuyaAPI/cli)\n\n",
     "footerDisplay": "",
     "schema": {
       "type": "object",
@@ -155,6 +155,7 @@
               },
               "ip": {
                 "title": "IP Address",
+                "description": "Optional fallback address. Local discovery finds the current IP and follows address changes while Homebridge is running.",
                 "type": "string",
                 "required": false,
                 "condition": {

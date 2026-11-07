@@ -192,7 +192,7 @@ function buildV35ClientBroadcast(localIp, seq = 1) {
   hdr.writeUInt32BE(0x00006699, 0);
   hdr.writeUInt16BE(0, 4); // unknown field
   hdr.writeUInt32BE(seq, 6); // sequence
-  hdr.writeUInt32BE(0, 10); // cmd = 0  (generic client broadcast)
+  hdr.writeUInt32BE(0x25, 10); // REQ_DEVINFO (Tuya discovery request)
   hdr.writeUInt32BE(iv.length + payload.length + 16, 14); // placeholder
 
   // First pass — determine real encrypted size

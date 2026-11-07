@@ -6,6 +6,8 @@ Development checks use Homebridge 2.5.0 and Node 22, 24 and 26 in CI. Run `npm c
 
 Control your supported Tuya accessories locally in HomeKit using Homebridge!
 
+Devices are now discovered automatically at startup and checked every minute. New devices are reported in the Homebridge log; configured devices follow IP changes without creating duplicate accessories. A local key and device type are still required. See [automatic local discovery](docs/local-discovery.md) for setup and network limitations.
+
 * [Supported Device Types](#supported-device-types)
 * [Installation Instructions](#installation-instructions)
 * [Configuration](#configuration)
