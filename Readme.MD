@@ -1,14 +1,8 @@
 # Homebridge-Tuya-Local
 
-[![npm](https://img.shields.io/npm/v/homebridge-tuya-local.svg)](https://www.npmjs.com/package/homebridge-tuya-local)
-[![npm](https://img.shields.io/npm/dt/homebridge-tuya-local.svg)](https://www.npmjs.com/package/homebridge-tuya-local)
-[![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
+This fork of [morfeldt/homebridge-tuya-local](https://github.com/morfeldt/homebridge-tuya-local) preserves the Homebridge 2 and Tuya 3.5 fixes described in [the compatibility notes](docs/homebridge-2.md). It has not been published to npm or verified by Homebridge. The npm package with the same name belongs to upstream.
 
-> [!NOTE]
-> The original plugin by iRayan has again entered a state of dormancy so I'll keep this plugin alive for the time being. This fork adds Tuya v3.5 protocol support and some minor fixes so that the latest Tuya devices keep on working flawlessly with the current homebridge setup. 
-
-> [!IMPORTANT]
-> This is a collective project. If your device is not working well with the plugin, please **DON'T** create an 'issue' expecting someone to help.  You’re the only one who can test and figure it out with the device you have. Pull requests are always welcome!
+Development checks use Homebridge 2.5.0 and Node 22, 24 and 26 in CI. Run `npm ci --ignore-scripts`, `npm run check` and `npm test` locally.
 
 Control your supported Tuya accessories locally in HomeKit using Homebridge!
 
@@ -47,15 +41,13 @@ Note: Motion, and other sensor types don't behave well with responce requests, s
 
 ## Installation Instructions
 
-#### Option 1: Install via Homebridge Config UI X:
+Use this repository's Git URL when installing the fork:
 
-Search for "Tuya" in [homebridge-config-ui-x](https://github.com/oznu/homebridge-config-ui-x) and install `homebridge-tuya-local`.
-
-#### Option 2: Manually Install:
-
+```text
+git+https://github.com/Buslowicz/homebridge-tuya-local.git#main
 ```
-sudo npm install -g homebridge-tuya-local
-```
+
+Back up your Homebridge configuration and current plugin before replacing it. Prefer pinning a reviewed full commit SHA instead of `main`. Use the plugin-installation procedure appropriate for your Homebridge setup. Installing `homebridge-tuya-local` from npm selects upstream, which does not include this fork's fixes.
 
 ## Configuration
 > UI

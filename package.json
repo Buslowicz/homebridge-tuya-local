@@ -4,7 +4,8 @@
   "description": "🏠 Control Tuya Accessories Locally with Homebridge",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check-syntax.js"
   },
   "bin": {
     "tuya-lan": "./bin/cli.js",
@@ -13,14 +14,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ayushsharma82/homebridge-tuya-local.git"
+    "url": "git+https://github.com/Buslowicz/homebridge-tuya-local.git"
   },
   "author": "Rayan Khan (maintained by @ayushsharma82)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ayushsharma82/homebridge-tuya-local/issues"
+    "url": "https://github.com/Buslowicz/homebridge-tuya-local/issues"
   },
-  "homepage": "https://github.com/ayushsharma82/homebridge-tuya-local#readme",
+  "homepage": "https://github.com/Buslowicz/homebridge-tuya-local#readme",
   "dependencies": {
     "async": "^3.2.2",
     "commander": "^3.0.1",
@@ -42,5 +43,8 @@
   "engines": {
     "homebridge": ">=0.4.0",
     "node": ">=8.6.0"
+  },
+  "devDependencies": {
+    "homebridge": "2.5.0"
   }
 }
